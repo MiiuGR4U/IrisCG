@@ -34,17 +34,70 @@ jobs:
     - name: Make gradlew executable
       run: chmod +x ./gradlew
       
+    - name: List directory structure (debug)
+      run: |
+        echo "📁 Root directory contents:"
+        ls -la
+        echo ""
+        echo "📁 Checking for gradle files:"
+        find . -name "*.gradle*" -o -name "gradlew*"
+        
     - name: Build Iris with Gradle
-      run: ./gradlew iris
+      run: |
+        echo "🔨 Building Iris..."
+        ./gradlew iris --info --stacktrace
+        
+    - name: List build outputs (debug)
+      run: |
+        echo "📁 Looking for build directories:"
+        find . -type d -name "build" 2>/dev/null || echo "No build directories found"
+        echo ""
+        echo "📁 Looking for JAR files anywhere:"
+        find . -name "*.jar" -type f 2>/dev/null || echo "No JAR files found"
+        echo ""
+        echo "📁 Full directory structure:"
+        find . -type f -name "*.jar" -exec ls -la {} \; 2>/dev/null || echo "No JAR files to list"
       
     - name: Find built JAR
       id: find_jar
       run: |
-        JAR_PATH=$(find Iris/build -name "Iris-*.jar" -type f | head -1)
+        echo "🔍 Searching for Iris JAR files..."
+        
+        # Tenta diferentes localizações possíveis
+        JAR_PATH=""
+        
+        # Localização 1: Iris/build (como mencionado na documentação)
+        if [ -d "Iris/build" ]; then
+          JAR_PATH=$(find Iris/build -name "Iris-*.jar" -type f | head -1)
+        fi
+        
+        # Localização 2: build/libs (padrão do Gradle)
+        if [ -z "$JAR_PATH" ] && [ -d "build/libs" ]; then
+          JAR_PATH=$(find build/libs -name "Iris-*.jar" -type f | head -1)
+        fi
+        
+        # Localização 3: qualquer diretório build
         if [ -z "$JAR_PATH" ]; then
-          echo "❌ JAR file not found!"
+          JAR_PATH=$(find . -path "*/build/*" -name "Iris-*.jar" -type f | head -1)
+        fi
+        
+        # Localização 4: busca geral por qualquer JAR com Iris no nome
+        if [ -z "$JAR_PATH" ]; then
+          JAR_PATH=$(find . -name "*[Ii]ris*.jar" -type f | head -1)
+        fi
+        
+        # Localização 5: qualquer JAR no projeto
+        if [ -z "$JAR_PATH" ]; then
+          JAR_PATH=$(find . -name "*.jar" -type f | head -1)
+          echo "⚠️ Using any available JAR: $JAR_PATH"
+        fi
+        
+        if [ -z "$JAR_PATH" ]; then
+          echo "❌ JAR file not found in any expected location!"
+          echo "Build may have failed. Check the build logs above."
           exit 1
         fi
+        
         echo "jar_path=$JAR_PATH" >> $GITHUB_OUTPUT
         echo "jar_name=$(basename $JAR_PATH)" >> $GITHUB_OUTPUT
         echo "✅ Found JAR: $JAR_PATH"
@@ -86,14 +139,53 @@ jobs:
       run: chmod +x ./gradlew
       
     - name: Build Iris
-      run: ./gradlew iris
-      
+      run: |
+        echo "🔨 Building Iris..."
+        ./gradlew iris --info --stacktrace
+        
     - name: Find built JAR
       id: find_jar
       run: |
-        JAR_PATH=$(find Iris/build -name "Iris-*.jar" -type f | head -1)
+        echo "🔍 Searching for Iris JAR files..."
+        
+        # Tenta diferentes localizações possíveis
+        JAR_PATH=""
+        
+        # Localização 1: Iris/build (como mencionado na documentação)
+        if [ -d "Iris/build" ]; then
+          JAR_PATH=$(find Iris/build -name "Iris-*.jar" -type f | head -1)
+        fi
+        
+        # Localização 2: build/libs (padrão do Gradle)
+        if [ -z "$JAR_PATH" ] && [ -d "build/libs" ]; then
+          JAR_PATH=$(find build/libs -name "Iris-*.jar" -type f | head -1)
+        fi
+        
+        # Localização 3: qualquer diretório build
+        if [ -z "$JAR_PATH" ]; then
+          JAR_PATH=$(find . -path "*/build/*" -name "Iris-*.jar" -type f | head -1)
+        fi
+        
+        # Localização 4: busca geral por qualquer JAR com Iris no nome
+        if [ -z "$JAR_PATH" ]; then
+          JAR_PATH=$(find . -name "*[Ii]ris*.jar" -type f | head -1)
+        fi
+        
+        # Localização 5: qualquer JAR no projeto
+        if [ -z "$JAR_PATH" ]; then
+          JAR_PATH=$(find . -name "*.jar" -type f | head -1)
+          echo "⚠️ Using any available JAR: $JAR_PATH"
+        fi
+        
+        if [ -z "$JAR_PATH" ]; then
+          echo "❌ JAR file not found in any expected location!"
+          echo "Build may have failed. Check the build logs above."
+          exit 1
+        fi
+        
         echo "jar_path=$JAR_PATH" >> $GITHUB_OUTPUT
         echo "jar_name=$(basename $JAR_PATH)" >> $GITHUB_OUTPUT
+        echo "✅ Found JAR: $JAR_PATH"
         
     - name: Create Release
       uses: softprops/action-gh-release@v1
